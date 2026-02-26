@@ -1,0 +1,5 @@
+bucket_name       = ""
+my_domain         = ""
+cloudfront_alias  = ""
+content_path      = ""
+environment       = ""
