@@ -1,11 +1,11 @@
 // Define local variables for reuse
 locals {
   s3_origin_id = "myS3Origin"
-  my_domain    = "your-domain.com" # Replace with your domain
+  my_domain    = var.my_domain
 }
 
 data "aws_acm_certificate" "my_domain" {
-  region   = "us-east-1" // change to actual region that hosted
+  region   = "us-east-1" // change to actual region based on ARN 
   domain   = "*.${local.my_domain}"
   statuses = ["ISSUED"]
 }
@@ -62,12 +62,11 @@ resource "aws_s3_bucket_policy" "s3_bucket_policy" {
 }
 
 resource "aws_s3_object" "s3_object" {
-  for_each = fileset("${path.module}/../landing_page_cilicis/my-app/dist", "**") #change to project path (in this case the project dir is one level)
+  for_each = fileset("${path.module}/${var.content_path}", "**")
   bucket   = aws_s3_bucket.s3_bucket_name.id
   key      = each.value
-  source   = "${path.module}/../landing_page_cilicis/my-app/dist/${each.value}" #change to dist/artifact path to be uploaded to s3 
-  etag     = filemd5("${path.module}/../landing_page_cilicis/my-app/dist/${each.value}")
-  //acl      = "public-read"
+  source   = "${path.module}/${var.content_path}/${each.value}"
+  etag     = filemd5("${path.module}/${var.content_path}/${each.value}")
   content_type = lookup({
     "html"        = "text/html",
     "css"         = "text/css",
@@ -98,19 +97,21 @@ resource "aws_cloudfront_origin_access_control" "default_oac" {
   signing_protocol                  = "sigv4"
 }
 
+#
+
 resource "aws_cloudfront_distribution" "s3_distribution" {
   origin {
-    domain_name = aws_s3_bucket.s3_bucket_name.bucket_regional_domain_name
+    domain_name              = aws_s3_bucket.s3_bucket_name.bucket_regional_domain_name
     origin_access_control_id = aws_cloudfront_origin_access_control.default_oac.id
     origin_id                = local.s3_origin_id
   }
 
   enabled             = true
   is_ipv6_enabled     = true
-  comment             = "Some comment"
+  comment             = "Some comment about the distribution"
   default_root_object = "index.html"
 
-  aliases = ["app1.${local.my_domain}"]
+  aliases = ["${var.cloudfront_alias}.${local.my_domain}"]
 
   default_cache_behavior {
     allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
@@ -154,6 +155,30 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
     viewer_protocol_policy = "redirect-to-https"
   }
 
+  custom_error_response {
+    error_code         = 404
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
+  custom_error_response {
+    error_code         = 403
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
+  custom_error_response {
+    error_code         = 502
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
+  custom_error_response {
+    error_code         = 504
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
   # Cache behavior with precedence 1
   ordered_cache_behavior {
     path_pattern     = "/content/*"
@@ -186,7 +211,7 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
   }
 
   tags = {
-    Environment = "production"
+    Environment = var.environment
   }
 
   viewer_certificate {
