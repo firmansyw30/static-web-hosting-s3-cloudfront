@@ -19,7 +19,7 @@ variable "cloudfront_alias" {
 variable "content_path" {
   description = "Path to the static content files to upload."
   type        = string
-  default     = "the-content-path"
+  default     = "index.html" # Default using existing index.html files
 }
 
 variable "environment" {
